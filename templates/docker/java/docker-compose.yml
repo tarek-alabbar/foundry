@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder
+    container_name: <<APP_NAME>>
+    ports:
+      - "<<PORT>>:<<PORT>>"
+    environment:
+      - SERVER_PORT=<<PORT>>
+      - SPRING_PROFILES_ACTIVE=dev
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/src/src
+      - maven_cache:/root/.m2
+    command: ./mvnw spring-boot:run
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:<<PORT>>/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  maven_cache:

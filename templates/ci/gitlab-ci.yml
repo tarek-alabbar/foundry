@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────
+#  GitLab CI — CI/CD adapter for <<APP_NAME>>
+#  All pipeline logic lives in Taskfile.yml.
+#  This file is intentionally thin and identical across projects.
+# ─────────────────────────────────────────────────────────────
+
+default:
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - apk add --no-cache curl
+    - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+stages:
+  - ci
+  - deploy
+
+build-test:
+  stage: ci
+  script:
+    - task ci
+  only:
+    - merge_requests
+    - main
+    - develop
+
+deploy-staging:
+  stage: deploy
+  script:
+    - task deploy ENV=staging TAG=$CI_COMMIT_SHA
+  environment:
+    name: staging
+  only:
+    - main
+  variables:
+    # Cloud credentials — set these in GitLab CI/CD → Variables
+    # Azure:  AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+    # AWS:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+    # GCP:    GCP_PROJECT_ID, GOOGLE_CREDENTIALS
+    REGISTRY: $REGISTRY_URL

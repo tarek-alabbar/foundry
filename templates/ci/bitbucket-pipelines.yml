@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+#  Bitbucket Pipelines — CI/CD adapter for <<APP_NAME>>
+#  All pipeline logic lives in Taskfile.yml.
+#  This file is intentionally thin and identical across projects.
+# ─────────────────────────────────────────────────────────────
+
+image: docker:24
+
+definitions:
+  steps:
+    - step: &install-task
+        name: Install Task runner
+        script:
+          - apk add --no-cache curl
+          - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: CI (build & test)
+          services: [docker]
+          script:
+            - apk add --no-cache curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+
+  branches:
+    main:
+      - step:
+          name: CI (build & test)
+          services: [docker]
+          script:
+            - apk add --no-cache curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+      - step:
+          name: Deploy to staging
+          deployment: staging
+          services: [docker]
+          script:
+            - apk add --no-cache curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task deploy ENV=staging TAG=$BITBUCKET_COMMIT
+          # Cloud credentials — set in Bitbucket repo → Repository variables
+          # Azure:  AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+          # AWS:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+          # GCP:    GCP_PROJECT_ID, GOOGLE_CREDENTIALS

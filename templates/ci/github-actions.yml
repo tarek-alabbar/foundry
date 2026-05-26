@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────
+#  GitHub Actions — CI/CD adapter for <<APP_NAME>>
+#  All pipeline logic lives in Taskfile.yml.
+#  This file is intentionally thin and identical across projects.
+# ─────────────────────────────────────────────────────────────
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ${{ vars.REGISTRY_URL }}
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Build & test
+        run: task ci
+
+  deploy:
+    name: Deploy
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Deploy to staging
+        run: task deploy ENV=staging TAG=${{ github.sha }}
+        env:
+          # Cloud credentials — set these in GitHub repo/org secrets
+          # Azure:  AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+          # AWS:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+          # GCP:    GCP_PROJECT_ID, GOOGLE_CREDENTIALS
+          REGISTRY: ${{ secrets.REGISTRY_URL }}

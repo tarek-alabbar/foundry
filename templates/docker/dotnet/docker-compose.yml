@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder
+    container_name: <<APP_NAME>>
+    ports:
+      - "<<PORT>>:<<PORT>>"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:<<PORT>>
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/src/src
+    command: dotnet watch --project src/**/*.csproj run
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:<<PORT>>/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

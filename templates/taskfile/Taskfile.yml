@@ -1,0 +1,160 @@
+# ─────────────────────────────────────────────────────────────
+#  Taskfile — Pipeline source of truth for <<APP_NAME>>
+#
+#  All CI platforms (GitHub Actions, GitLab CI, Bitbucket, Jenkins)
+#  call these tasks. Nothing platform-specific lives in the adapters.
+#
+#  Install Task: https://taskfile.dev/installation/
+#  Run a task:   task <name>
+#  List tasks:   task --list
+# ─────────────────────────────────────────────────────────────
+
+version: "3"
+
+vars:
+  APP:      <<APP_NAME>>
+  REGISTRY: <<REGISTRY_URL>>
+  IMAGE:    "{{.REGISTRY}}"
+  TAG:      '{{.TAG | default "latest"}}'
+  ENV:      '{{.ENV | default "dev"}}'
+
+# ── Local Development ──────────────────────────────────────────
+
+tasks:
+  dev:
+    desc: "Start full local development stack (hot reload, dependencies)"
+    cmd: docker compose up --build
+    silent: false
+
+  dev:down:
+    desc: "Stop local development stack"
+    cmd: docker compose down
+
+  shell:
+    desc: "Open a shell inside the running app container"
+    cmd: docker compose exec app sh
+
+  # ── Build ──────────────────────────────────────────────────
+
+  build:
+    desc: "Build the container image (tagged :local)"
+    cmd: docker build -t {{.APP}}:local .
+
+  build:prod:
+    desc: "Build the container image (tagged :{{.TAG}})"
+    cmd: docker build -t {{.IMAGE}}:{{.TAG}} --target runtime .
+
+  # ── Test ───────────────────────────────────────────────────
+
+  test:
+    desc: "Run all tests inside a fresh container"
+    cmd: docker run --rm --env-file .env.example {{.APP}}:local sh -c "<<TEST_CMD>>"
+
+  test:unit:
+    desc: "Run unit tests only"
+    cmd: docker run --rm {{.APP}}:local sh -c "<<TEST_UNIT_CMD>>"
+
+  test:integration:
+    desc: "Run integration tests (requires dev stack to be up)"
+    cmd: docker run --rm --network host --env-file .env.example {{.APP}}:local sh -c "<<TEST_INTEGRATION_CMD>>"
+
+  # ── Security ───────────────────────────────────────────────
+
+  scan:
+    desc: "Scan image for vulnerabilities (requires Docker)"
+    cmd: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+         aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL {{.APP}}:local
+
+  lint:
+    desc: "Run linter inside container"
+    cmd: docker run --rm {{.APP}}:local sh -c "<<LINT_CMD>>"
+
+  # ── CI Pipeline (what all CI adapters call) ────────────────
+
+  ci:
+    desc: "Full CI pipeline: build → test → scan"
+    cmds:
+      - task: build
+      - task: test
+      - task: scan
+
+  # ── Registry ───────────────────────────────────────────────
+
+  registry:login:
+    desc: "Authenticate with the container registry"
+    cmd: <<REGISTRY_LOGIN_CMD>>
+
+  push:
+    desc: "Tag and push image to registry (TAG=<sha> ENV=<env>)"
+    deps: [registry:login]
+    cmds:
+      - docker tag {{.APP}}:local {{.IMAGE}}:{{.TAG}}
+      - docker push {{.IMAGE}}:{{.TAG}}
+      - docker tag {{.APP}}:local {{.IMAGE}}:{{.ENV}}-latest
+      - docker push {{.IMAGE}}:{{.ENV}}-latest
+
+  # ── Infrastructure ─────────────────────────────────────────
+
+  infra:bootstrap:
+    desc: "Provision remote state backend — run ONCE per project"
+    dir: infrastructure/state-bootstrap
+    cmds:
+      - terraform init
+      - terraform apply -auto-approve
+    prompt: "This will create cloud resources for Terraform state. Continue?"
+
+  infra:init:
+    desc: "Initialise Terraform for ENV (e.g. task infra:init ENV=dev)"
+    dir: "infrastructure/environments/{{.ENV}}"
+    cmd: terraform init -backend-config=backend.hcl -reconfigure
+
+  infra:plan:
+    desc: "Terraform plan for ENV"
+    dir: "infrastructure/environments/{{.ENV}}"
+    cmd: terraform plan -var-file=terraform.tfvars
+
+  infra:apply:
+    desc: "Terraform apply for ENV"
+    dir: "infrastructure/environments/{{.ENV}}"
+    cmd: terraform apply -var-file=terraform.tfvars -auto-approve
+
+  infra:destroy:
+    desc: "Destroy infrastructure for ENV"
+    dir: "infrastructure/environments/{{.ENV}}"
+    cmd: terraform destroy -var-file=terraform.tfvars
+    prompt: "This will DESTROY all infrastructure for {{.ENV}}. Are you sure?"
+
+  infra:output:
+    desc: "Show Terraform outputs for ENV"
+    dir: "infrastructure/environments/{{.ENV}}"
+    cmd: terraform output
+
+  # ── Deploy ─────────────────────────────────────────────────
+
+  deploy:
+    desc: "Full deploy: build → test → push → infra apply  (ENV=dev TAG=<sha>)"
+    cmds:
+      - task: ci
+      - task: push
+      - task: infra:apply
+    vars:
+      TAG: '{{.TAG | default "latest"}}'
+
+  deploy:dev:
+    desc: "Deploy to dev environment"
+    cmds:
+      - task: deploy
+        vars: { ENV: dev, TAG: "{{.TAG}}" }
+
+  deploy:staging:
+    desc: "Deploy to staging environment"
+    cmds:
+      - task: deploy
+        vars: { ENV: staging, TAG: "{{.TAG}}" }
+
+  deploy:prod:
+    desc: "Deploy to prod environment"
+    cmds:
+      - task: deploy
+        vars: { ENV: prod, TAG: "{{.TAG}}" }
+    prompt: "Deploying to PRODUCTION. Continue?"

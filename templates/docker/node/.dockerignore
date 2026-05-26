@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.github
+.ci
+*.md
+*.log
+.env*
+infrastructure
+Taskfile.yml

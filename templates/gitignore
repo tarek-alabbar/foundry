@@ -1,0 +1,60 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+.next/
+.nuxt/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# .NET
+bin/
+obj/
+*.user
+
+# Go
+vendor/
+*.exe
+*.exe~
+
+# Java
+target/
+*.class
+*.jar
+*.war
+
+# Docker
+.dockerdata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

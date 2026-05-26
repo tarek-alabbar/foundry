@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder
+    container_name: <<APP_NAME>>
+    ports:
+      - "<<PORT>>:<<PORT>>"
+    environment:
+      - PORT=<<PORT>>
+    env_file:
+      - .env.example
+    volumes:
+      - ./app:/app/app           # hot reload
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port <<PORT>>
+      --reload
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:<<PORT>>/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

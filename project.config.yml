@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────
+#  Scaffold — Project Configuration
+#  Fill this in, then run: python generate.py
+# ─────────────────────────────────────────────────────────────
+
+project:
+  name: my-app          # kebab-case, used for all resource names
+  team: my-team         # your team name
+
+cloud:
+  provider: azure       # azure | aws | gcp
+  region: uksouth       # provider-specific region identifier
+                        #   Azure examples: uksouth, ukwest, westeurope, eastus
+                        #   AWS examples:   eu-west-2, us-east-1, ap-southeast-1
+                        #   GCP examples:   europe-west2, us-central1
+
+language: node          # node | python | dotnet | go | java
+port: 3000              # port your app listens on inside the container
+
+resources:
+  cpu: "0.5"            # vCPU units (0.25 / 0.5 / 1.0 / 2.0)
+  memory: "1Gi"         # memory (512Mi / 1Gi / 2Gi / 4Gi)
+
+environments:           # remove any you don't need
+  - dev
+  - staging
+  - prod
+
+output_dir: ../my-app   # where to generate the project (relative to this file)
+                        # must not already exist

@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder           # use the builder stage for hot-reload
+    container_name: <<APP_NAME>>
+    ports:
+      - "<<PORT>>:<<PORT>>"
+    environment:
+      - NODE_ENV=development
+      - PORT=<<PORT>>
+    env_file:
+      - .env.example            # rename to .env and fill in real values
+    volumes:
+      - ./src:/app/src           # hot reload
+      - /app/node_modules        # preserve container's node_modules
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:<<PORT>>/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

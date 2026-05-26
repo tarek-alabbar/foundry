@@ -1,0 +1,8 @@
+target
+.git
+.github
+.ci
+*.md
+.env*
+infrastructure
+Taskfile.yml

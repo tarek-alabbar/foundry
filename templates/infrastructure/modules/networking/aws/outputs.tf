@@ -1,0 +1,3 @@
+output "vpc_id"          { value = aws_vpc.main.id }
+output "subnet_ids"      { value = aws_subnet.public[*].id }
+output "environment_id"  { value = aws_vpc.main.id  description = "VPC ID — passed to container-runtime as environment_id" }

@@ -1,0 +1,64 @@
+// ─────────────────────────────────────────────────────────────
+//  Jenkinsfile — CI/CD adapter for <<APP_NAME>>
+//  All pipeline logic lives in Taskfile.yml.
+//  This file is intentionally thin and identical across projects.
+//
+//  Jenkins connects to any Git host (GitHub, GitLab, Bitbucket, etc.)
+//  via a webhook — this file is the same regardless of where code is hosted.
+//
+//  Prerequisites on Jenkins agent:
+//    - Docker
+//    - Task (https://taskfile.dev/installation/)
+//    - Cloud CLI (az / aws / gcloud) depending on target cloud
+// ─────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = credentials('REGISTRY_URL')
+        // Cloud credentials — add these in Jenkins → Credentials
+        // Azure:  AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+        // AWS:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+        // GCP:    GCP_PROJECT_ID, GOOGLE_CREDENTIALS
+    }
+
+    stages {
+        stage('CI') {
+            steps {
+                sh 'task ci'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh "task deploy ENV=staging TAG=${env.GIT_COMMIT}"
+            }
+        }
+
+        stage('Deploy to Prod') {
+            when {
+                branch 'main'
+            }
+            input {
+                message 'Deploy to production?'
+                ok 'Yes, deploy'
+            }
+            steps {
+                sh "task deploy ENV=prod TAG=${env.GIT_COMMIT}"
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Pipeline failed. Check the logs above.'
+        }
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+    }
+}

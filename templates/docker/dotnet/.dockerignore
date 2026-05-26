@@ -1,0 +1,9 @@
+**/bin
+**/obj
+**/.git
+**/.github
+**/.ci
+*.md
+.env*
+infrastructure
+Taskfile.yml
