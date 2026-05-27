@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────
 
 project:
-  name: my-wishlist          # kebab-case, used for all resource names
+  name: wishlist          # kebab-case, used for all resource names
   team: tar-tech             # your team name
 
 github:
@@ -29,5 +29,5 @@ environments:           # remove any you don't need
   - staging
   - prod
 
-output_dir: ../my-wishlist   # where to generate the project (relative to this file)
+output_dir: ../wishlist   # where to generate the project (relative to this file)
                         # must not already exist

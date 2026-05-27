@@ -23,7 +23,10 @@ terraform {
 }
 
 provider "azuread" {}
-provider "azurerm" { features {} }
+
+provider "azurerm" {
+  features {}
+}
 
 data "azurerm_subscription" "current" {}
 data "azuread_client_config" "current" {}
