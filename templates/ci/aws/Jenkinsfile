@@ -1,0 +1,41 @@
+// ─────────────────────────────────────────────────────────────
+//  Jenkinsfile — <<APP_NAME>>  [AWS]
+//
+//  Required Jenkins credentials (Manage Jenkins → Credentials):
+//    aws-credentials → AWS credentials (Access Key ID + Secret)
+// ─────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    stages {
+        stage('CI') {
+            steps {
+                sh 'task ci'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when { branch 'main' }
+            steps {
+                withCredentials([aws(credentialsId: 'aws-credentials',
+                                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh "task deploy ENV=staging TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+
+        stage('Deploy to Prod') {
+            when { branch 'main' }
+            input { message 'Deploy to production?' }
+            steps {
+                withCredentials([aws(credentialsId: 'aws-credentials',
+                                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh "task deploy ENV=prod TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+    }
+}

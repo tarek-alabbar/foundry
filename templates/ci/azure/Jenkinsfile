@@ -1,0 +1,44 @@
+// ─────────────────────────────────────────────────────────────
+//  Jenkinsfile — <<APP_NAME>>  [Azure]
+//
+//  Jenkins does not support OIDC natively. It uses a stored
+//  Service Principal credential (set once in Jenkins credentials store).
+//
+//  Required Jenkins credentials (Manage Jenkins → Credentials):
+//    azure-sp → Azure Service Principal
+//    (Client ID, Client Secret, Tenant ID, Subscription ID)
+// ─────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    stages {
+        stage('CI') {
+            steps {
+                sh 'task ci'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when { branch 'main' }
+            steps {
+                withCredentials([azureServicePrincipal('azure-sp')]) {
+                    sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID'
+                    sh 'az account set --subscription $AZURE_SUBSCRIPTION_ID'
+                    sh "task deploy ENV=staging TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+
+        stage('Deploy to Prod') {
+            when { branch 'main' }
+            input { message 'Deploy to production?' }
+            steps {
+                withCredentials([azureServicePrincipal('azure-sp')]) {
+                    sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID'
+                    sh "task deploy ENV=prod TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+    }
+}

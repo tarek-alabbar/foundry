@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────
+#  Bitbucket Pipelines — <<APP_NAME>>  [Azure / OIDC]
+#  Uses Bitbucket OIDC to authenticate with Azure.
+#
+#  Required repository variables (Repository settings → Variables):
+#    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+image: ubuntu:22.04
+
+definitions:
+  steps:
+    - step: &setup
+        script:
+          - apt-get update -q && apt-get install -y curl
+          - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+          - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+
+  branches:
+    main:
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+      - step:
+          name: Deploy to staging
+          oidc: true
+          deployment: staging
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+            - az login --service-principal
+                --username "$AZURE_CLIENT_ID"
+                --tenant "$AZURE_TENANT_ID"
+                --federated-token "$BITBUCKET_STEP_OIDC_TOKEN"
+            - az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+            - task deploy ENV=staging TAG=$BITBUCKET_COMMIT

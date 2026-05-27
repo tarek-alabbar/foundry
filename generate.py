@@ -75,11 +75,12 @@ def load_config(config_path: str) -> dict:
 # ──────────────────────────────────────────────────────────────
 
 def build_replacements(config: dict) -> dict:
-    app_name  = config["project"]["name"]
-    cloud     = config["cloud"]["provider"]
-    region    = config["cloud"]["region"]
-    resources = config.get("resources", {})
-    app_clean = app_name.replace("-", "").replace("_", "")
+    app_name   = config["project"]["name"]
+    cloud      = config["cloud"]["provider"]
+    region     = config["cloud"]["region"]
+    resources  = config.get("resources", {})
+    app_clean  = app_name.replace("-", "").replace("_", "")
+    github_org = config.get("github", {}).get("org", "YOUR_GITHUB_ORG")
 
     # Cloud-specific registry values, pre-computed so the
     # Taskfile and Terraform outputs are already wired up.
@@ -121,6 +122,7 @@ def build_replacements(config: dict) -> dict:
         "<<MEMORY>>":                str(resources.get("memory", "1Gi")),
         "<<REGISTRY_URL>>":          registry_url,
         "<<REGISTRY_LOGIN_CMD>>":    registry_login_cmd,
+        "<<GITHUB_ORG>>":            github_org,
         "<<TEST_CMD>>":              test_all,
         "<<TEST_UNIT_CMD>>":         test_unit,
         "<<TEST_INTEGRATION_CMD>>":  test_integration,
@@ -181,9 +183,9 @@ def generate(config: dict, replacements: dict):
     print(f"  Envs:     {', '.join(envs)}")
     print(f"  Output:   {output_dir}\n")
 
-    # ── CI Adapters (platform-agnostic, identical across all projects)
-    step("CI adapters", ".ci/")
-    copy_dir(TEMPLATES_DIR / "ci", output_dir / ".ci", replacements)
+    # ── CI Adapters (cloud-specific auth, same pipeline logic)
+    step("CI adapters", f".ci/  [{cloud}]")
+    copy_dir(TEMPLATES_DIR / "ci" / cloud, output_dir / ".ci", replacements)
 
     # ── Docker (language-specific)
     step("Docker", f"Dockerfile  docker-compose.yml  .dockerignore")
@@ -227,6 +229,14 @@ def generate(config: dict, replacements: dict):
         replacements,
     )
 
+    # ── OIDC trust module (cloud-specific, run once)
+    step("OIDC trust", f"infrastructure/oidc/  [{cloud}]")
+    copy_dir(
+        TEMPLATES_DIR / "infrastructure" / "oidc" / cloud,
+        output_dir / "infrastructure" / "oidc",
+        replacements,
+    )
+
     # ── Misc root files
     copy_file(TEMPLATES_DIR / "env.example",  output_dir / ".env.example", replacements)
     copy_file(TEMPLATES_DIR / "gitignore",    output_dir / ".gitignore",   replacements)
@@ -240,9 +250,10 @@ def generate(config: dict, replacements: dict):
   ──────────
   1.  cd into your project directory
   2.  git init && git add . && git commit -m "Cast from Foundry"
-  3.  task infra:bootstrap          # provision remote state (once)
-  4.  task dev                      # start local dev stack
-  5.  task deploy ENV=dev           # first deploy
+  3.  task oidc:setup               # configure CI → cloud trust (once)
+  4.  task infra:bootstrap          # provision remote state (once)
+  5.  task dev                      # start local dev stack
+  6.  task deploy ENV=dev           # first deploy
 """)
 
 

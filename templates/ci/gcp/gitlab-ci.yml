@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────
+#  GitLab CI — <<APP_NAME>>  [GCP / OIDC]
+#  Requires GitLab 16.0+ with ID tokens enabled.
+#
+#  Required CI/CD variables (Settings → CI/CD → Variables):
+#    GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_PROJECT_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+default:
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update -q && apt-get install -y curl unzip
+    - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+    - curl -sS https://sdk.cloud.google.com | bash -s -- --disable-prompts
+    - export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
+stages: [ci, deploy]
+
+build-test:
+  stage: ci
+  services: [docker:24-dind]
+  script:
+    - task ci
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+deploy-staging:
+  stage: deploy
+  id_tokens:
+    GCP_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/$GCP_WORKLOAD_IDENTITY_PROVIDER
+  script:
+    - gcloud iam workload-identity-pools create-cred-config
+        "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+        --service-account="$GCP_SERVICE_ACCOUNT"
+        --credential-source-file=/dev/stdin
+        --output-file=$CI_PROJECT_DIR/gcp-creds.json <<< "$GCP_OIDC_TOKEN"
+    - gcloud auth login --cred-file=$CI_PROJECT_DIR/gcp-creds.json
+    - task deploy ENV=staging TAG=$CI_COMMIT_SHA
+  environment: staging
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

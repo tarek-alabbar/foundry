@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────
+#  GitHub Actions — <<APP_NAME>>  [GCP / OIDC]
+#  No secrets stored. Authenticates via Workload Identity Federation.
+#
+#  Required GitHub repo variables (Settings → Variables):
+#    GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_PROJECT_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-task@v2
+        with: { version: 3.x }
+      - run: task ci
+
+  deploy:
+    name: Deploy
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (OIDC — no secrets)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: arduino/setup-task@v2
+        with: { version: 3.x }
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy to staging
+        run: task deploy ENV=staging TAG=${{ github.sha }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}

@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────
+#  GitHub Actions — <<APP_NAME>>  [AWS / OIDC]
+#  No secrets stored. Authenticates by assuming an IAM role.
+#
+#  Required GitHub repo variables (Settings → Variables):
+#    AWS_ROLE_ARN, AWS_REGION, AWS_ACCOUNT_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-task@v2
+        with: { version: 3.x }
+      - run: task ci
+
+  deploy:
+    name: Deploy
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC — no secrets)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: arduino/setup-task@v2
+        with: { version: 3.x }
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy to staging
+        run: task deploy ENV=staging TAG=${{ github.sha }}
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}

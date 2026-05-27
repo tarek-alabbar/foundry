@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────
+#  Bitbucket Pipelines — <<APP_NAME>>  [AWS / OIDC]
+#
+#  Required repository variables:
+#    AWS_ROLE_ARN, AWS_REGION, AWS_ACCOUNT_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+image: ubuntu:22.04
+
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+
+  branches:
+    main:
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+      - step:
+          name: Deploy to staging
+          oidc: true
+          deployment: staging
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl awscli
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - >
+              export $(aws sts assume-role-with-web-identity
+              --role-arn "$AWS_ROLE_ARN"
+              --role-session-name bitbucket-ci
+              --web-identity-token "$BITBUCKET_STEP_OIDC_TOKEN"
+              --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]"
+              --output text | awk '{print "AWS_ACCESS_KEY_ID="$1"\nAWS_SECRET_ACCESS_KEY="$2"\nAWS_SESSION_TOKEN="$3}')
+            - task deploy ENV=staging TAG=$BITBUCKET_COMMIT

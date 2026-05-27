@@ -95,6 +95,19 @@ tasks:
 
   # ── Infrastructure ─────────────────────────────────────────
 
+  oidc:setup:
+    desc: "Configure OIDC trust between CI and <<CLOUD_PROVIDER>> — run ONCE per project"
+    dir: infrastructure/oidc
+    cmds:
+      - terraform init
+      - terraform apply -auto-approve
+      - echo ""
+      - echo "════════════════════════════════════════════════"
+      - echo "  Add these as Variables in your CI platform:"
+      - echo "════════════════════════════════════════════════"
+      - terraform output
+    prompt: "This configures cloud IAM so CI can deploy without stored secrets. Continue?"
+
   infra:bootstrap:
     desc: "Provision remote state backend — run ONCE per project"
     dir: infrastructure/state-bootstrap

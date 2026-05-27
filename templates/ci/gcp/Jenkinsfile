@@ -1,0 +1,41 @@
+// ─────────────────────────────────────────────────────────────
+//  Jenkinsfile — <<APP_NAME>>  [GCP]
+//
+//  Required Jenkins credentials (Manage Jenkins → Credentials):
+//    gcp-service-account-key → Secret file (service account JSON)
+// ─────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    stages {
+        stage('CI') {
+            steps {
+                sh 'task ci'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when { branch 'main' }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-service-account-key',
+                                      variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh 'gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS'
+                    sh "task deploy ENV=staging TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+
+        stage('Deploy to Prod') {
+            when { branch 'main' }
+            input { message 'Deploy to production?' }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-service-account-key',
+                                      variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh 'gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS'
+                    sh "task deploy ENV=prod TAG=${env.GIT_COMMIT}"
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────────────────────
+#  Bitbucket Pipelines — <<APP_NAME>>  [GCP / OIDC]
+#
+#  Required repository variables:
+#    GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_PROJECT_ID
+#  Set by running: task oidc:setup
+# ─────────────────────────────────────────────────────────────
+
+image: ubuntu:22.04
+
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+
+  branches:
+    main:
+      - step:
+          name: CI
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - task ci
+      - step:
+          name: Deploy to staging
+          oidc: true
+          deployment: staging
+          services: [docker]
+          script:
+            - apt-get update -q && apt-get install -y curl
+            - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+            - curl -sS https://sdk.cloud.google.com | bash -s -- --disable-prompts
+            - export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+            - gcloud iam workload-identity-pools create-cred-config
+                "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+                --service-account="$GCP_SERVICE_ACCOUNT"
+                --credential-source-file=/dev/stdin
+                --output-file=gcp-creds.json <<< "$BITBUCKET_STEP_OIDC_TOKEN"
+            - gcloud auth login --cred-file=gcp-creds.json
+            - task deploy ENV=staging TAG=$BITBUCKET_COMMIT
