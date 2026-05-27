@@ -23,14 +23,78 @@ The generated project contains **only** the files relevant to your chosen cloud 
 
 ## Prerequisites
 
-- Python 3.8+
-- `pip install -r requirements.txt`
+### To run the generator
 
-That's it for generation. The generated project additionally requires:
-- [Task](https://taskfile.dev/installation/) — `brew install go-task`
-- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.6
-- [Docker](https://docs.docker.com/get-docker/)
-- Cloud CLI (`az` / `aws` / `gcloud`) depending on your target cloud
+| Tool | Min version | Check | Install |
+|---|---|---|---|
+| Git | any | `git --version` | `brew install git` |
+| Python | 3.8+ | `python --version` | see pyenv below |
+| pip | any | `pip --version` | bundled with Python |
+
+**Python — install via pyenv (recommended):**
+
+pyenv manages Python versions and gives you `python` and `pip` as proper commands.
+
+```bash
+brew install pyenv
+```
+
+Add to `~/.zshrc` (after your existing PATH block):
+
+```bash
+# -------------------------
+# pyenv (Python version manager)
+# -------------------------
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+```
+
+Then reload and install Python:
+
+```bash
+source ~/.zshrc
+pyenv install 3.13
+pyenv global 3.13
+
+# Verify
+python --version    # Python 3.13.x
+pip --version       # pip x.x ... python 3.13
+```
+
+---
+
+### For generated projects
+
+These are needed to use what Foundry generates. Install them once — they apply to every project.
+
+**Core tools:**
+
+| Tool | Min version | Check | Install |
+|---|---|---|---|
+| Task | 3.x | `task --version` | `brew install go-task` |
+| Terraform | 1.6+ | `terraform --version` | see below |
+| Docker | any | `docker --version` | `brew install --cask docker` |
+
+**Terraform — install via the official HashiCorp tap:**
+
+```bash
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+
+# Verify
+terraform --version    # Terraform v1.x.x
+```
+
+> Using the HashiCorp tap ensures you get the latest stable release and updates via `brew upgrade`.
+
+**Cloud CLIs — install only for your target cloud:**
+
+| Cloud | CLI | Check | Install |
+|---|---|---|---|
+| Azure | `az` | `az --version` | `brew install azure-cli` |
+| AWS | `aws` | `aws --version` | `brew install awscli` |
+| GCP | `gcloud` | `gcloud version` | `brew install --cask google-cloud-sdk` |
 
 ---
 
@@ -106,21 +170,30 @@ Output:
   ──────────
   1.  cd into your project directory
   2.  git init && git add . && git commit -m "Cast from Foundry"
-  3.  task infra:bootstrap          # provision remote state (once)
-  4.  task dev                      # start local dev stack
-  5.  task deploy ENV=dev           # first deploy
+  3.  task oidc:setup               # configure CI → cloud trust (once)
+  4.  task infra:bootstrap          # provision remote state (once)
+  5.  task dev                      # start local dev stack
+  6.  task deploy ENV=dev           # first deploy
 ```
 
-### 4. Bootstrap remote state (once per project)
+### 4. Configure CI authentication (once per project)
 
 ```bash
 cd ../payments-api
+task oidc:setup
+```
+
+This creates the trust relationship between your CI platform and your cloud provider. No credentials are stored anywhere — CI authenticates via a short-lived token exchange. After it completes, Terraform prints the variable names and values to add to your GitHub repo settings.
+
+### 5. Bootstrap remote state (once per project)
+
+```bash
 task infra:bootstrap
 ```
 
-This creates the Terraform state backend in your cloud account. Every subsequent `terraform` command stores its state there automatically.
+This provisions the Terraform state backend in your cloud account. Every subsequent `terraform` command stores its state there automatically.
 
-### 5. Start developing
+### 6. Start developing
 
 ```bash
 task dev             # start local stack with hot reload
@@ -154,10 +227,11 @@ my-app/
 │   │   │   └── backend.hcl         ← remote state path for dev
 │   │   ├── staging/
 │   │   └── prod/
-│   └── state-bootstrap/            ← run once: provisions the state backend
+│   ├── oidc/                       ← run once: configures CI → cloud trust (no stored secrets)
+│   └── state-bootstrap/            ← run once: provisions the remote state backend
 │
 └── .ci/
-    ├── github-actions.yml          ← ~20 lines, calls `task ci` and `task deploy`
+    ├── github-actions.yml          ← cloud-specific OIDC auth + calls `task ci` / `task deploy`
     ├── gitlab-ci.yml
     ├── bitbucket-pipelines.yml
     └── Jenkinsfile
@@ -201,22 +275,37 @@ The three Terraform modules (`container-runtime`, `registry`, `networking`) shar
 ## Taskfile reference
 
 ```bash
-task dev                  # start local stack
-task build                # build container image
-task test                 # run tests in container
-task scan                 # vulnerability scan (Trivy)
-task ci                   # build + test + scan (what CI calls)
+# ── One-time project setup ─────────────────────────────────────
+task oidc:setup               # configure CI → cloud trust (no stored secrets)
+task infra:bootstrap          # provision remote state backend
 
-task infra:bootstrap      # provision state backend (once)
-task infra:init  ENV=dev  # terraform init
-task infra:plan  ENV=dev  # terraform plan
-task infra:apply ENV=dev  # terraform apply
+# ── Local development ──────────────────────────────────────────
+task dev                      # start full local stack (hot reload)
+task dev:down                 # stop local stack
+task shell                    # open shell in running container
 
-task push        ENV=dev TAG=abc123   # push image to registry
-task deploy      ENV=dev TAG=abc123   # ci + push + infra:apply
-task deploy:dev                       # shorthand
-task deploy:staging
-task deploy:prod                      # prompts for confirmation
+# ── Build & test ───────────────────────────────────────────────
+task build                    # build container image
+task test                     # run all tests in container
+task test:unit                # unit tests only
+task test:integration         # integration tests (requires dev stack)
+task lint                     # run linter
+task scan                     # vulnerability scan (Trivy)
+task ci                       # build + test + scan  ← what all CI adapters call
+
+# ── Infrastructure ─────────────────────────────────────────────
+task infra:init   ENV=dev     # terraform init
+task infra:plan   ENV=dev     # terraform plan
+task infra:apply  ENV=dev     # terraform apply
+task infra:output ENV=dev     # show terraform outputs
+task infra:destroy ENV=dev    # destroy infrastructure (prompts)
+
+# ── Deploy ─────────────────────────────────────────────────────
+task push    ENV=dev TAG=abc123   # tag + push image to registry
+task deploy  ENV=dev TAG=abc123   # ci + push + infra:apply
+task deploy:dev                   # shorthand for dev
+task deploy:staging               # shorthand for staging
+task deploy:prod                  # shorthand for prod (prompts for confirmation)
 ```
 
 ---
