@@ -1,8 +1,11 @@
 # ─────────────────────────────────────────────────────────────
 #  State Bootstrap — AWS
 #
-#  Creates S3 bucket + DynamoDB table for Terraform state.
+#  Provisions the S3 + DynamoDB backend for Terraform state.
 #  Run ONCE per project: task infra:bootstrap
+#
+#  Uses LOCAL state intentionally — there is no remote backend yet.
+#  Module source: github.com/<<GITHUB_ORG>>/terraform-modules
 # ─────────────────────────────────────────────────────────────
 
 terraform {
@@ -16,50 +19,21 @@ terraform {
 }
 
 provider "aws" {
-  region = var.location
+  region = "<<REGION>>"
 }
 
-locals {
-  bucket_name = "${replace(var.app_name, "-", "")}tfstate"
+module "state_backend" {
+  source = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/state-backend/aws?ref=<<MODULES_VERSION>>"
+
+  app_name = "<<APP_NAME>>"
+  location = "<<REGION>>"
+  tags     = { managed_by = "terraform-bootstrap", app = "<<APP_NAME>>" }
 }
 
-resource "aws_s3_bucket" "tfstate" {
-  bucket        = local.bucket_name
-  force_destroy = false
-  tags          = { managed_by = "terraform-bootstrap", app = var.app_name }
+output "bucket_name" {
+  value = module.state_backend.bucket_name
 }
 
-resource "aws_s3_bucket_versioning" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-  versioning_configuration { status = "Enabled" }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "tfstate" {
-  bucket                  = aws_s3_bucket.tfstate.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_dynamodb_table" "tfstate_lock" {
-  name         = "${replace(var.app_name, "-", "")}-tfstate-lock"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  tags = { managed_by = "terraform-bootstrap", app = var.app_name }
+output "dynamodb_table" {
+  value = module.state_backend.dynamodb_table
 }

@@ -26,7 +26,7 @@ locals {
 # ── Networking ─────────────────────────────────────────────────
 
 module "networking" {
-  source     = "../../modules/networking"
+  source     = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/networking/gcp?ref=<<MODULES_VERSION>>"
   app_name   = "${var.app_name}-${var.environment}"
   location   = var.location
   project_id = var.project_id
@@ -36,7 +36,7 @@ module "networking" {
 # ── Registry ───────────────────────────────────────────────────
 
 module "registry" {
-  source     = "../../modules/registry"
+  source     = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/registry/gcp?ref=<<MODULES_VERSION>>"
   app_name   = var.app_name
   location   = var.location
   project_id = var.project_id
@@ -46,7 +46,7 @@ module "registry" {
 # ── Container Runtime ──────────────────────────────────────────
 
 module "app" {
-  source              = "../../modules/container-runtime"
+  source              = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/container-runtime/gcp?ref=<<MODULES_VERSION>>"
   app_name            = "${var.app_name}-${var.environment}"
   resource_group_name = ""
   location            = var.location

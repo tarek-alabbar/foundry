@@ -54,6 +54,7 @@ def load_config(config_path: str) -> dict:
     require("language",         config.get("language"))
     require("port",             config.get("port"))
     require("output_dir",       config.get("output_dir"))
+    require("modules_version",  config.get("modules_version"))
 
     if errors:
         print(f"❌  Missing required config fields: {', '.join(errors)}")
@@ -87,6 +88,7 @@ def build_replacements(config: dict) -> dict:
     if cloud == "azure":
         registry_url       = f"{app_clean}acr.azurecr.io"
         registry_login_cmd = f"az acr login --name {app_clean}acr"
+        auth_check_cmd     = "az account show"
     elif cloud == "aws":
         registry_url       = f"${{AWS_ACCOUNT_ID}}.dkr.ecr.{region}.amazonaws.com/{app_name}"
         registry_login_cmd = (
@@ -94,9 +96,11 @@ def build_replacements(config: dict) -> dict:
             f"docker login --username AWS --password-stdin "
             f"${{AWS_ACCOUNT_ID}}.dkr.ecr.{region}.amazonaws.com"
         )
+        auth_check_cmd     = "aws sts get-caller-identity"
     else:  # gcp
         registry_url       = f"{region}-docker.pkg.dev/${{GCP_PROJECT_ID}}/{app_name}/{app_name}"
         registry_login_cmd = f"gcloud auth configure-docker {region}-docker.pkg.dev"
+        auth_check_cmd     = "gcloud auth print-identity-token"
 
     # Language-specific commands pre-filled in the Taskfile
     language = config["language"]
@@ -108,6 +112,8 @@ def build_replacements(config: dict) -> dict:
         "java":   ("./mvnw test",          "./mvnw test -Dgroups=unit", "./mvnw test -Dgroups=integration", "./mvnw checkstyle:check"),
     }
     test_all, test_unit, test_integration, lint = test_cmds.get(language, ("echo 'add test command'", "echo 'add unit test command'", "echo 'add integration test command'", "echo 'add lint command'"))
+
+    gcp_project_id = config.get("gcp", {}).get("project_id", "YOUR_GCP_PROJECT_ID")
 
     return {
         "<<APP_NAME>>":              app_name,
@@ -122,7 +128,10 @@ def build_replacements(config: dict) -> dict:
         "<<MEMORY>>":                str(resources.get("memory", "1Gi")),
         "<<REGISTRY_URL>>":          registry_url,
         "<<REGISTRY_LOGIN_CMD>>":    registry_login_cmd,
+        "<<AUTH_CHECK_CMD>>":        auth_check_cmd,
         "<<GITHUB_ORG>>":            github_org,
+        "<<MODULES_VERSION>>":       config.get("modules_version", "v0.1.0"),
+        "<<GCP_PROJECT_ID>>":        gcp_project_id,
         "<<TEST_CMD>>":              test_all,
         "<<TEST_UNIT_CMD>>":         test_unit,
         "<<TEST_INTEGRATION_CMD>>":  test_integration,
@@ -198,15 +207,6 @@ def generate(config: dict, replacements: dict):
         output_dir / "Taskfile.yml",
         replacements,
     )
-
-    # ── Terraform modules (cloud-specific)
-    step("Terraform modules", f"infrastructure/modules/  [{cloud}]")
-    for module in ["container-runtime", "registry", "networking"]:
-        copy_dir(
-            TEMPLATES_DIR / "infrastructure" / "modules" / module / cloud,
-            output_dir / "infrastructure" / "modules" / module,
-            replacements,
-        )
 
     # ── Terraform environments
     step("Terraform environments", f"infrastructure/environments/  {envs}")

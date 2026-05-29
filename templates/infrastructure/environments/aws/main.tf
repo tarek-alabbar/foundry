@@ -25,7 +25,7 @@ locals {
 # ── Networking ─────────────────────────────────────────────────
 
 module "networking" {
-  source   = "../../modules/networking"
+  source   = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/networking/aws?ref=<<MODULES_VERSION>>"
   app_name = "${var.app_name}-${var.environment}"
   location = var.location
   tags     = local.tags
@@ -34,7 +34,7 @@ module "networking" {
 # ── Registry ───────────────────────────────────────────────────
 
 module "registry" {
-  source   = "../../modules/registry"
+  source   = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/registry/aws?ref=<<MODULES_VERSION>>"
   app_name = var.app_name
   location = var.location
   tags     = local.tags
@@ -43,7 +43,7 @@ module "registry" {
 # ── Container Runtime ──────────────────────────────────────────
 
 module "app" {
-  source              = "../../modules/container-runtime"
+  source              = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/container-runtime/aws?ref=<<MODULES_VERSION>>"
   app_name            = "${var.app_name}-${var.environment}"
   resource_group_name = ""
   location            = var.location

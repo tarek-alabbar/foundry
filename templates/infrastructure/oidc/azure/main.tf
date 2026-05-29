@@ -1,11 +1,12 @@
 # ─────────────────────────────────────────────────────────────
 #  OIDC Trust — Azure
 #
-#  Creates an App Registration with a Federated Identity Credential
-#  so GitHub Actions can authenticate to Azure without any stored secrets.
+#  Creates the App Registration + Federated Identity Credential
+#  so GitHub Actions can authenticate without stored secrets.
 #
-#  Run once per project: task oidc:setup
+#  Run ONCE per project: task oidc:setup
 #  After running, copy the outputs into your GitHub repo variables.
+#  Module source: github.com/<<GITHUB_ORG>>/terraform-modules
 # ─────────────────────────────────────────────────────────────
 
 terraform {
@@ -28,42 +29,21 @@ provider "azurerm" {
   features {}
 }
 
-data "azurerm_subscription" "current" {}
-data "azuread_client_config" "current" {}
+module "oidc" {
+  source = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/oidc/azure?ref=<<MODULES_VERSION>>"
 
-# App Registration — the identity CI will assume
-resource "azuread_application" "ci" {
-  display_name = "${var.project_name}-ci"
-  owners       = [data.azuread_client_config.current.object_id]
+  project_name = "<<APP_NAME>>"
+  github_org   = "<<GITHUB_ORG>>"
 }
 
-resource "azuread_service_principal" "ci" {
-  client_id = azuread_application.ci.client_id
-  owners    = [data.azuread_client_config.current.object_id]
+output "AZURE_CLIENT_ID" {
+  value = module.oidc.AZURE_CLIENT_ID
 }
 
-# Federated credential — trusts tokens from GitHub Actions for this repo
-resource "azuread_application_federated_identity_credential" "main_branch" {
-  application_id = azuread_application.ci.id
-  display_name   = "github-main"
-  description    = "GitHub Actions on main branch for ${var.github_org}/${var.project_name}"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_org}/${var.project_name}:ref:refs/heads/main"
+output "AZURE_TENANT_ID" {
+  value = module.oidc.AZURE_TENANT_ID
 }
 
-resource "azuread_application_federated_identity_credential" "pull_request" {
-  application_id = azuread_application.ci.id
-  display_name   = "github-pr"
-  description    = "GitHub Actions on pull requests for ${var.github_org}/${var.project_name}"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_org}/${var.project_name}:pull_request"
-}
-
-# Grant Contributor on the subscription so CI can manage all project resources
-resource "azurerm_role_assignment" "ci_contributor" {
-  scope                = data.azurerm_subscription.current.id
-  role_definition_name = "Contributor"
-  principal_id         = azuread_service_principal.ci.object_id
+output "AZURE_SUBSCRIPTION_ID" {
+  value = module.oidc.AZURE_SUBSCRIPTION_ID
 }

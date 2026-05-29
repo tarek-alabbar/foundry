@@ -2,10 +2,11 @@
 #  OIDC Trust — AWS
 #
 #  Creates an IAM OIDC Provider and IAM Role so GitHub Actions
-#  can assume a role without any stored access keys.
+#  can assume a role without stored access keys.
 #
-#  Run once per project: task oidc:setup
+#  Run ONCE per project: task oidc:setup
 #  After running, copy the outputs into your GitHub repo variables.
+#  Module source: github.com/<<GITHUB_ORG>>/terraform-modules
 # ─────────────────────────────────────────────────────────────
 
 terraform {
@@ -19,45 +20,25 @@ terraform {
 }
 
 provider "aws" {
-  region = var.region
+  region = "<<REGION>>"
 }
 
-data "aws_caller_identity" "current" {}
+module "oidc" {
+  source = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/oidc/aws?ref=<<MODULES_VERSION>>"
 
-# GitHub's OIDC provider — created once per AWS account (idempotent)
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-
-  # GitHub's OIDC thumbprint — stable, no tls_certificate data source needed
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1",
-                     "1c58a3a8518e8759bf075b76b750d4f2df264fcd"]
+  project_name = "<<APP_NAME>>"
+  github_org   = "<<GITHUB_ORG>>"
+  region       = "<<REGION>>"
 }
 
-# IAM Role that GitHub Actions will assume
-resource "aws_iam_role" "ci" {
-  name        = "${var.project_name}-ci"
-  description = "Assumed by GitHub Actions for ${var.github_org}/${var.project_name}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.project_name}:*"
-        }
-        StringEquals = {
-          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-      }
-    }]
-  })
+output "AWS_ROLE_ARN" {
+  value = module.oidc.AWS_ROLE_ARN
 }
 
-resource "aws_iam_role_policy_attachment" "ci" {
-  role       = aws_iam_role.ci.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+output "AWS_REGION" {
+  value = module.oidc.AWS_REGION
+}
+
+output "AWS_ACCOUNT_ID" {
+  value = module.oidc.AWS_ACCOUNT_ID
 }

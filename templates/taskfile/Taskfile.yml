@@ -95,8 +95,14 @@ tasks:
 
   # ── Infrastructure ─────────────────────────────────────────
 
+  auth:check:
+    desc: "Verify <<CLOUD_PROVIDER>> credentials are active — runs before all infra tasks"
+    cmd: <<AUTH_CHECK_CMD>>
+    silent: false
+
   oidc:setup:
     desc: "Configure OIDC trust between CI and <<CLOUD_PROVIDER>> — run ONCE per project"
+    deps: [auth:check]
     dir: infrastructure/oidc
     cmds:
       - terraform init
@@ -110,6 +116,7 @@ tasks:
 
   infra:bootstrap:
     desc: "Provision remote state backend — run ONCE per project"
+    deps: [auth:check]
     dir: infrastructure/state-bootstrap
     cmds:
       - terraform init
@@ -118,6 +125,7 @@ tasks:
 
   infra:init:
     desc: "Initialise Terraform for ENV (e.g. task infra:init ENV=dev)"
+    deps: [auth:check]
     dir: "infrastructure/environments/{{.ENV}}"
     cmd: terraform init -backend-config=backend.hcl -reconfigure
 
@@ -128,6 +136,7 @@ tasks:
 
   infra:apply:
     desc: "Terraform apply for ENV"
+    deps: [auth:check]
     dir: "infrastructure/environments/{{.ENV}}"
     cmd: terraform apply -var-file=terraform.tfvars -auto-approve
 

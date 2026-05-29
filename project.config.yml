@@ -31,3 +31,5 @@ environments:           # remove any you don't need
 
 output_dir: ../wishlist   # where to generate the project (relative to this file)
                         # must not already exist
+
+modules_version: v0.1.0  # git tag from github.com/<github.org>/terraform-modules

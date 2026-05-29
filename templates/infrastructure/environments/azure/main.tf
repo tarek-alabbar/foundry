@@ -33,7 +33,7 @@ locals {
 # ── Networking ─────────────────────────────────────────────────
 
 module "networking" {
-  source              = "../../modules/networking"
+  source              = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/networking/azure?ref=<<MODULES_VERSION>>"
   app_name            = "${var.app_name}-${var.environment}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -43,7 +43,7 @@ module "networking" {
 # ── Registry ───────────────────────────────────────────────────
 
 module "registry" {
-  source              = "../../modules/registry"
+  source              = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/registry/azure?ref=<<MODULES_VERSION>>"
   app_name            = replace("${var.app_name}${var.environment}", "-", "")
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -53,7 +53,7 @@ module "registry" {
 # ── Container Runtime ──────────────────────────────────────────
 
 module "app" {
-  source              = "../../modules/container-runtime"
+  source              = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/container-runtime/azure?ref=<<MODULES_VERSION>>"
   app_name            = "${var.app_name}-${var.environment}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location

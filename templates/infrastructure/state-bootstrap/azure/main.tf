@@ -1,11 +1,11 @@
 # ─────────────────────────────────────────────────────────────
 #  State Bootstrap — Azure
 #
-#  Creates the Azure Blob Storage backend for Terraform state.
+#  Provisions the Azure Blob Storage backend for Terraform state.
 #  Run ONCE per project: task infra:bootstrap
 #
-#  Uses LOCAL state intentionally (it bootstraps the remote state —
-#  there's no chicken-and-egg problem this way).
+#  Uses LOCAL state intentionally — there is no remote backend yet.
+#  Module source: github.com/<<GITHUB_ORG>>/terraform-modules
 # ─────────────────────────────────────────────────────────────
 
 terraform {
@@ -22,24 +22,23 @@ provider "azurerm" {
   features {}
 }
 
-resource "azurerm_resource_group" "tfstate" {
-  name     = "rg-${var.app_name}-tfstate"
-  location = var.location
-  tags     = { managed_by = "terraform-bootstrap", app = var.app_name }
+module "state_backend" {
+  source = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/state-backend/azure?ref=<<MODULES_VERSION>>"
+
+  app_name            = "<<APP_NAME>>"
+  resource_group_name = "rg-<<APP_NAME>>-tfstate"
+  location            = "<<REGION>>"
+  tags                = { managed_by = "terraform-bootstrap", app = "<<APP_NAME>>" }
 }
 
-resource "azurerm_storage_account" "tfstate" {
-  name                            = "${substr(replace(var.app_name, "-", ""), 0, 18)}tfstate"
-  resource_group_name             = azurerm_resource_group.tfstate.name
-  location                        = azurerm_resource_group.tfstate.location
-  account_tier                    = "Standard"
-  account_replication_type        = "LRS"
-  allow_nested_items_to_be_public = false
-  tags                            = { managed_by = "terraform-bootstrap", app = var.app_name }
+output "resource_group_name" {
+  value = module.state_backend.resource_group_name
 }
 
-resource "azurerm_storage_container" "tfstate" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.tfstate.name
-  container_access_type = "private"
+output "storage_account_name" {
+  value = module.state_backend.storage_account_name
+}
+
+output "container_name" {
+  value = module.state_backend.container_name
 }

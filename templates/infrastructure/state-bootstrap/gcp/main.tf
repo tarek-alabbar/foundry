@@ -1,8 +1,11 @@
 # ─────────────────────────────────────────────────────────────
 #  State Bootstrap — GCP
 #
-#  Creates a GCS bucket for Terraform state.
+#  Provisions the GCS bucket for Terraform state.
 #  Run ONCE per project: task infra:bootstrap
+#
+#  Uses LOCAL state intentionally — there is no remote backend yet.
+#  Module source: github.com/<<GITHUB_ORG>>/terraform-modules
 # ─────────────────────────────────────────────────────────────
 
 terraform {
@@ -16,21 +19,19 @@ terraform {
 }
 
 provider "google" {
-  project = var.project_id
-  region  = var.location
+  project = "<<GCP_PROJECT_ID>>"
+  region  = "<<REGION>>"
 }
 
-resource "google_storage_bucket" "tfstate" {
-  name          = "${replace(var.app_name, "-", "")}tfstate"
-  location      = upper(var.location)
-  project       = var.project_id
-  force_destroy = false
+module "state_backend" {
+  source = "git::https://github.com/<<GITHUB_ORG>>/terraform-modules.git//modules/state-backend/gcp?ref=<<MODULES_VERSION>>"
 
-  versioning {
-    enabled = true
-  }
+  app_name   = "<<APP_NAME>>"
+  location   = "<<REGION>>"
+  project_id = "<<GCP_PROJECT_ID>>"
+  tags       = { managed_by = "terraform-bootstrap", app = "<<APP_NAME>>" }
+}
 
-  uniform_bucket_level_access = true
-
-  labels = { managed_by = "terraform-bootstrap", app = replace(var.app_name, "-", "_") }
+output "bucket_name" {
+  value = module.state_backend.bucket_name
 }
